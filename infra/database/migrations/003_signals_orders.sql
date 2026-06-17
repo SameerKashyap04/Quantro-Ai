@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS signals (
     reasoning_json JSONB DEFAULT '{}',
     ai_bullish_prob DECIMAL(5,2),
     ai_bearish_prob DECIMAL(5,2),
+    holding_period_days INTEGER,
     is_active BOOLEAN DEFAULT true,
     expires_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
