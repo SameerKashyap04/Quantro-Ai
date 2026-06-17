@@ -119,11 +119,11 @@ export const Dashboard = () => {
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-7 animate-in delay-500">
         {/* Placeholder for Main Chart */}
-        <Card className="col-span-4 lg:col-span-4 min-h-[400px] flex flex-col p-0">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-4 min-h-[300px] lg:min-h-[400px] flex flex-col p-0">
           <CardHeader className="border-b border-[var(--border-primary)]">
             <CardTitle>Equity Curve</CardTitle>
           </CardHeader>
-          <CardContent className="flex-1 p-4 bg-[var(--bg-tertiary)]/50">
+          <CardContent className="flex-1 p-2 md:p-4 bg-[var(--bg-tertiary)]/50">
             {equityCurve.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={equityCurve} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -173,11 +173,14 @@ export const Dashboard = () => {
         </Card>
 
         {/* Placeholder for Recent Signals/Activity */}
-        <Card className="col-span-3 lg:col-span-3 min-h-[400px] p-0 flex flex-col">
-          <CardHeader className="border-b border-[var(--border-primary)]">
+        <Card className="col-span-1 md:col-span-2 lg:col-span-3 flex flex-col p-0">
+          <CardHeader className="flex flex-row items-center justify-between border-b border-[var(--border-primary)] py-4">
             <CardTitle>Recent AI Signals</CardTitle>
+            <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate('/signals')}>
+              View All
+            </Button>
           </CardHeader>
-          <CardContent className="flex-1 p-0 flex flex-col bg-[var(--bg-tertiary)]/30">
+          <CardContent className="flex-1 p-0 overflow-y-auto max-h-[300px] lg:max-h-none">
             {signals.length > 0 ? (
               <div className="divide-y divide-[var(--border-primary)]">
                 {signals.map((sig) => (

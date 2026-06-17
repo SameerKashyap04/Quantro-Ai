@@ -133,7 +133,8 @@ export const Portfolio = () => {
               {holdings.length} Assets
             </div>
           </CardHeader>
-          <div className="flex-1 overflow-x-auto bg-[var(--bg-glass)]">
+          {/* Desktop Table View */}
+          <div className="hidden md:block flex-1 overflow-x-auto bg-[var(--bg-glass)]">
             <table className="data-table">
               <thead>
                 <tr>
@@ -186,6 +187,57 @@ export const Portfolio = () => {
                 )}
               </tbody>
             </table>
+          </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden flex flex-col divide-y divide-[var(--border-secondary)] bg-[var(--bg-glass)]">
+            {holdings.length > 0 ? (
+              holdings.map((h: any) => {
+                const pnlPct = Number(h.pnl_pct);
+                const isPositive = pnlPct >= 0;
+                return (
+                  <div key={h.symbol} className="p-4 flex flex-col gap-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] border border-[var(--border-primary)] flex items-center justify-center shrink-0">
+                          <span className="text-xs font-bold text-[var(--text-secondary)]">{h.symbol?.substring(0,2)}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="font-medium text-[var(--text-primary)] truncate">{h.symbol}</div>
+                          <div className="text-xs text-[var(--text-secondary)] truncate">{h.name || h.symbol}</div>
+                        </div>
+                      </div>
+                      <div className={cn(
+                        "inline-flex items-center gap-1 px-2 py-1 rounded-md text-sm font-medium shrink-0",
+                        isPositive ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
+                      )}>
+                        {isPositive ? <ArrowUpRight className="w-3 h-3" /> : <ArrowDownRight className="w-3 h-3" />}
+                        {formatPct(h.pnl_pct)}
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 mt-1 bg-[var(--bg-tertiary)]/30 rounded-lg p-3">
+                      <div>
+                        <div className="text-[var(--text-tertiary)] text-[11px] uppercase tracking-wider mb-1">Holdings</div>
+                        <div className="font-medium text-sm text-[var(--text-primary)]">{h.quantity}</div>
+                      </div>
+                      <div>
+                        <div className="text-[var(--text-tertiary)] text-[11px] uppercase tracking-wider mb-1">Avg Price</div>
+                        <div className="font-medium text-sm text-[var(--text-secondary)]">{formatINR(h.avg_buy_price)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[var(--text-tertiary)] text-[11px] uppercase tracking-wider mb-1">Value</div>
+                        <div className="font-medium text-sm text-[var(--text-primary)]">{formatINR(h.current_value)}</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="p-6 text-center text-[var(--text-secondary)] flex flex-col items-center justify-center">
+                <PieChart className="w-12 h-12 text-[var(--text-tertiary)] mb-3" />
+                <p className="text-sm">No holdings found.</p>
+              </div>
+            )}
           </div>
         </Card>
       </div>

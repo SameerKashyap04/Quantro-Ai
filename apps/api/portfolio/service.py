@@ -97,10 +97,15 @@ class PortfolioService:
             # Find or create stock
             stock = await self.market_repo.get_stock_by_symbol(symbol)
             if not stock:
-                # We need to insert it manually since get_stock_by_symbol doesn't auto-create
+                # We need to upsert it manually since get_stock_by_symbol might return None for inactive stocks
                 from sqlalchemy import text
                 res = await self.db.execute(
-                    text("INSERT INTO stocks (symbol, name, is_active) VALUES (:symbol, :name, true) RETURNING id"),
+                    text("""
+                        INSERT INTO stocks (symbol, name, is_active) 
+                        VALUES (:symbol, :name, true) 
+                        ON CONFLICT (symbol) DO UPDATE SET is_active = true 
+                        RETURNING id
+                    """),
                     {"symbol": symbol, "name": symbol}
                 )
                 stock_id = res.scalar()

@@ -33,7 +33,7 @@ export function Sidebar() {
   return (
     <aside className={cn(
       "glass-sidebar fixed top-0 left-0 h-screen transition-all duration-300 z-50 flex flex-col",
-      isSidebarOpen ? "w-64" : "w-20"
+      isSidebarOpen ? "w-64 translate-x-0" : "w-64 -translate-x-full md:w-20 md:translate-x-0"
     )}>
       {/* Logo Area */}
       <div className="h-16 flex items-center justify-center px-4 border-b border-[var(--border-primary)]">

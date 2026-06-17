@@ -116,7 +116,8 @@ export const Signals = () => {
             <CardTitle className="text-[var(--text-primary)]">Active Signals</CardTitle>
           </div>
         </CardHeader>
-        <div className="overflow-x-auto bg-[var(--bg-glass)]">
+        {/* Desktop Table View */}
+        <div className="hidden md:block overflow-x-auto bg-[var(--bg-glass)]">
           <table className="data-table">
             <thead>
               <tr>
@@ -355,6 +356,139 @@ export const Signals = () => {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Mobile Card View */}
+        <div className="md:hidden flex flex-col divide-y divide-[var(--border-secondary)] bg-[var(--bg-glass)]">
+          {currentSignals.length > 0 ? (
+            currentSignals.map((sig) => {
+              const isBuy = sig.signal_type === 'BUY';
+              const isSell = sig.signal_type === 'SELL';
+              const rowKey = sig.id || sig.stock_id || sig.symbol;
+              const isExpanded = expandedSignalId === rowKey;
+              let reasoning: any = null;
+              try {
+                reasoning = typeof sig.reasoning_json === 'string' ? JSON.parse(sig.reasoning_json) : sig.reasoning_json;
+              } catch (e) {}
+
+              return (
+                <div key={rowKey} className="flex flex-col">
+                  {/* Card Header (clickable to expand) */}
+                  <div 
+                    className="p-4 cursor-pointer hover:bg-[var(--bg-glass-hover)] transition-colors flex flex-col gap-3"
+                    onClick={() => setExpandedSignalId(isExpanded ? null : rowKey)}
+                  >
+                     <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-3">
+                           <div className="w-8 h-8 rounded-full bg-[var(--bg-tertiary)] flex items-center justify-center font-bold text-xs border border-[var(--border-primary)] shrink-0">
+                             {sig.symbol?.substring(0, 2)}
+                           </div>
+                           <div className="min-w-0">
+                             <div className="font-semibold text-[var(--text-primary)] truncate">{sig.symbol}</div>
+                             <div className="text-xs text-[var(--text-secondary)] truncate">{sig.name}</div>
+                           </div>
+                        </div>
+                        <span className={cn(
+                          "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-bold border shadow-sm shrink-0",
+                          isBuy ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20" : 
+                          isSell ? "bg-red-500/10 text-red-500 border-red-500/20" :
+                          "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                        )}>
+                          {sig.signal_type}
+                        </span>
+                     </div>
+                     <div className="grid grid-cols-2 gap-2 text-sm bg-[var(--bg-tertiary)]/30 rounded-lg p-3 mt-1">
+                        <div>
+                           <div className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wider mb-1">Target</div>
+                           <div className="font-medium text-[var(--text-primary)] text-sm">
+                             {(() => {
+                               if (!sig.target_pct) return '-';
+                               try {
+                                 if (reasoning?.target_price) return `${Number(sig.target_pct).toFixed(2)}% (₹${reasoning.target_price})`;
+                               } catch (e) {}
+                               return `${Number(sig.target_pct).toFixed(2)}%`;
+                             })()}
+                           </div>
+                        </div>
+                        <div>
+                           <div className="text-[11px] text-[var(--text-tertiary)] uppercase tracking-wider mb-1">Confidence</div>
+                           <div className="font-medium text-[var(--text-primary)] text-sm">{Math.round(sig.confidence)}%</div>
+                        </div>
+                     </div>
+                     <div className="flex items-center justify-center w-full mt-1 text-[var(--text-tertiary)] group-hover:text-[var(--text-primary)]">
+                        {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                     </div>
+                  </div>
+                  
+                  {/* Expanded View */}
+                  {isExpanded && (
+                     <div className="p-4 pt-0 bg-[var(--bg-glass-hover)]/10 border-t border-[var(--border-primary)]">
+                        <div className="flex flex-col gap-4 mt-4">
+                            {/* Technicals */}
+                            <div className="flex flex-col gap-2 bg-[var(--bg-tertiary)] rounded-lg p-3 border border-[var(--border-primary)]">
+                              <div className="flex items-center gap-2 text-[var(--text-primary)] font-semibold pb-2 border-b border-[var(--border-secondary)] text-sm">
+                                <LineChart className="w-4 h-4 text-emerald-400" />
+                                Technicals
+                              </div>
+                              <div className="grid grid-cols-2 gap-y-2 gap-x-2 text-xs">
+                                <span className="text-[var(--text-secondary)]">Base Signal:</span>
+                                <span className={cn("font-medium", reasoning?.tech_signal === 'BUY' ? 'text-emerald-400' : reasoning?.tech_signal === 'SELL' ? 'text-red-400' : 'text-amber-400')}>{reasoning?.tech_signal || '-'}</span>
+                                <span className="text-[var(--text-secondary)]">Tech Score:</span>
+                                <span className="font-medium text-[var(--text-primary)]">{reasoning?.tech_score || 0}/100</span>
+                              </div>
+                            </div>
+                            {/* Fundamentals */}
+                            <div className="flex flex-col gap-2 bg-[var(--bg-tertiary)] rounded-lg p-3 border border-[var(--border-primary)]">
+                              <div className="flex items-center gap-2 text-[var(--text-primary)] font-semibold pb-2 border-b border-[var(--border-secondary)] text-sm">
+                                <BarChart2 className="w-4 h-4 text-blue-400" />
+                                Fundamentals
+                              </div>
+                              <div className="grid grid-cols-2 gap-y-2 gap-x-2 text-xs">
+                                <span className="text-[var(--text-secondary)]">P/E Ratio:</span>
+                                <span className="font-medium text-[var(--text-primary)]">{reasoning?.fundamentals?.trailingPE ? Number(reasoning.fundamentals.trailingPE).toFixed(2) : '-'}</span>
+                                <span className="text-[var(--text-secondary)]">ROE:</span>
+                                <span className="font-medium text-[var(--text-primary)]">{reasoning?.fundamentals?.returnOnEquity ? `${(Number(reasoning.fundamentals.returnOnEquity) * 100).toFixed(2)}%` : '-'}</span>
+                              </div>
+                            </div>
+                            {/* News Catalysts */}
+                            <div className="flex flex-col gap-2 bg-[var(--bg-tertiary)] rounded-lg p-3 border border-[var(--border-primary)]">
+                              <div className="flex items-center gap-2 text-[var(--text-primary)] font-semibold pb-2 border-b border-[var(--border-secondary)] text-sm">
+                                <BookOpen className="w-4 h-4 text-purple-400" />
+                                Recent News
+                              </div>
+                              <div className="flex flex-col gap-2 text-xs">
+                                {reasoning?.recent_headlines?.length > 0 ? (
+                                  reasoning.recent_headlines.slice(0, 2).map((headline: any, idx: number) => {
+                                    const title = typeof headline === 'string' ? headline : headline.title;
+                                    const link = typeof headline === 'string' ? null : headline.link;
+                                    return (
+                                      <div key={idx} className="flex items-start gap-2">
+                                        <div className="w-1 h-1 rounded-full bg-purple-400 mt-1.5 shrink-0" />
+                                        {link ? (
+                                          <a href={link} target="_blank" rel="noopener noreferrer" className="text-[var(--text-primary)] hover:text-purple-400 hover:underline leading-tight block truncate">{title}</a>
+                                        ) : (
+                                          <span className="text-[var(--text-primary)] leading-tight block truncate">{title}</span>
+                                        )}
+                                      </div>
+                                    )
+                                  })
+                                ) : (
+                                  <span className="text-[var(--text-tertiary)] italic">No recent news</span>
+                                )}
+                              </div>
+                            </div>
+                        </div>
+                     </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="p-6 text-center text-[var(--text-secondary)] flex flex-col items-center justify-center">
+              <Activity className="w-12 h-12 text-[var(--text-tertiary)] mb-3" />
+              <p className="text-sm">{isAnalyzing ? "Analyzing markets..." : activeTab === 'market' ? "No market opportunities found yet." : "No active portfolio signals."}</p>
+            </div>
+          )}
         </div>
       </Card>
     </div>
