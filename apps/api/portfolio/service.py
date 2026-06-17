@@ -128,11 +128,11 @@ class PortfolioService:
         """Get portfolio summary statistics."""
         holdings = await self.repo.get_holdings(source)
 
-        total_value = sum(h.get("current_value") or 0 for h in holdings)
-        invested_value = sum(h.get("invested_value") or 0 for h in holdings)
+        total_value = float(sum(h.get("current_value") or 0 for h in holdings))
+        invested_value = float(sum(h.get("invested_value") or 0 for h in holdings))
         total_pnl = total_value - invested_value
         total_pnl_pct = (total_pnl / invested_value * 100) if invested_value > 0 else 0
-        daily_pnl = sum(h.get("day_change") or 0 for h in holdings)
+        daily_pnl = float(sum(h.get("day_change") or 0 for h in holdings))
         daily_pnl_pct = (daily_pnl / total_value * 100) if total_value > 0 else 0
 
         return {
@@ -159,13 +159,13 @@ class PortfolioService:
                 "recommendations": ["No holdings found. Start building your portfolio."],
             }
 
-        total_value = sum(h.get("current_value") or 0 for h in holdings)
+        total_value = float(sum(h.get("current_value") or 0 for h in holdings))
 
         # Sector allocation
         sector_values: dict[str, float] = {}
         for h in holdings:
             sector = h.get("sector") or "Unknown"
-            sector_values[sector] = sector_values.get(sector, 0) + (h.get("current_value") or 0)
+            sector_values[sector] = sector_values.get(sector, 0) + float(h.get("current_value") or 0)
 
         sector_allocation = {
             s: round(v / total_value * 100, 2) if total_value > 0 else 0
@@ -173,7 +173,7 @@ class PortfolioService:
         }
 
         # Concentration risk (HHI)
-        weights = [(h.get("current_value") or 0) / total_value for h in holdings] if total_value > 0 else []
+        weights = [float(h.get("current_value") or 0) / total_value for h in holdings] if total_value > 0 else []
         hhi = sum(w**2 for w in weights) * 10000  # scale to 0-10000
         concentration_risk = min(100, hhi / 100)
 

@@ -256,10 +256,8 @@ class SignalService:
         for s in selected_stocks:
             symbol_signals = await self.repo.get_signals_by_symbol(s['symbol'], limit=1)
             if symbol_signals:
-                # Include all active signals (BUY/SELL) for market opportunities
-                sig_type = symbol_signals[0].get("signal_type")
-                if sig_type in ["BUY", "SELL"]:
-                    enriched_signals.append(symbol_signals[0])
+                # Include all active signals for market opportunities
+                enriched_signals.append(symbol_signals[0])
                 
         # Format dates
         for sig in enriched_signals:
