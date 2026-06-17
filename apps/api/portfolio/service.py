@@ -75,6 +75,9 @@ class PortfolioService:
             except:
                 return 0.0
 
+        # Delete previous holdings for this source
+        await self.repo.delete_holdings_by_source(source)
+
         upserted_count = 0
         for _, row in df.iterrows():
             symbol = str(row[symbol_col]).strip().upper()
@@ -111,6 +114,15 @@ class PortfolioService:
                 stock_id = res.scalar()
             else:
                 stock_id = stock["id"]
+
+            # Try to fetch latest live price from DB if current price wasn't specified in the excel file or matches avg_price
+            if not curr_price_col or curr_price <= 0 or curr_price == avg_price:
+                stock_data = await self.market_repo.get_ohlcv_daily(stock_id, limit=1)
+                if stock_data and len(stock_data) > 0 and stock_data[0].get("close"):
+                    curr_price = float(stock_data[0]["close"])
+                    curr_val = qty * curr_price
+                    pnl = curr_val - invested_val
+                    pnl_pct = (pnl / invested_val * 100) if invested_val > 0 else 0.0
 
             holding = {
                 "stock_id": str(stock_id),
