@@ -23,7 +23,15 @@ class PortfolioRepository:
             """),
             {"source": source},
         )
-        return [dict(row._mapping) for row in result.fetchall()]
+        rows = []
+        for row in result.fetchall():
+            mapping = dict(row._mapping)
+            # Convert Decimals to float for math operations
+            for key in ["quantity", "avg_buy_price", "current_price", "invested_value", "current_value", "pnl", "pnl_pct"]:
+                if mapping.get(key) is not None:
+                    mapping[key] = float(mapping[key])
+            rows.append(mapping)
+        return rows
 
     async def get_portfolio_snapshots(self, limit: int = 365) -> list[dict]:
         """Get portfolio value history."""
