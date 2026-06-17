@@ -59,13 +59,21 @@ class PortfolioService:
         # Try to find common column names for Symbol, Quantity, Avg Price, Current Price
         symbol_col = next((c for c in df.columns if any(x in c for x in ['instrument', 'symbol', 'stock', 'company', 'name', 'asset', 'fund'])), None)
         qty_col = next((c for c in df.columns if any(x in c for x in ['qty', 'quantity', 'shares', 'balance', 'available', 'units'])), None)
-        avg_price_col = next((c for c in df.columns if 'avg' in c or 'cost' in c or 'invested price' in c), None)
-        curr_price_col = next((c for c in df.columns if 'cmp' in c or 'ltp' in c or 'market' in c or 'nav' in c or ('current' in c and 'price' in c)), None)
-        invested_col = next((c for c in df.columns if 'invested' in c or 'investment' in c or 'amount' in c), None)
-        current_value_col = next((c for c in df.columns if 'current value' in c or 'market value' in c), None)
+        avg_price_col = next((c for c in df.columns if any(x in c for x in ['avg', 'cost', 'invested price', 'buy price', 'purchase'])), None)
+        curr_price_col = next((c for c in df.columns if any(x in c for x in ['cmp', 'ltp', 'market price', 'nav', 'current price', 'close'])), None)
+        invested_col = next((c for c in df.columns if any(x in c for x in ['invested', 'investment', 'amount', 'buy value'])), None)
+        current_value_col = next((c for c in df.columns if any(x in c for x in ['current value', 'market value', 'present value'])), None)
 
         if not symbol_col or not qty_col:
             raise ValueError(f"Excel file missing required columns. Found columns: {df.columns.tolist()}. Could not identify Symbol and Quantity columns.")
+
+        def _clean_num(val):
+            if pd.isna(val): return 0.0
+            try:
+                s = str(val).replace('₹', '').replace('Rs', '').replace(',', '').strip()
+                return float(s)
+            except:
+                return 0.0
 
         upserted_count = 0
         for _, row in df.iterrows():
@@ -73,18 +81,15 @@ class PortfolioService:
             if not symbol or symbol == 'NAN':
                 continue
                 
-            try:
-                qty = int(row[qty_col])
-                if qty <= 0:
-                    continue
-            except (ValueError, TypeError):
+            qty = _clean_num(row[qty_col])
+            if qty <= 0:
                 continue
                 
-            avg_price = float(row[avg_price_col]) if avg_price_col and pd.notna(row[avg_price_col]) else 0.0
-            curr_price = float(row[curr_price_col]) if curr_price_col and pd.notna(row[curr_price_col]) else avg_price
+            avg_price = _clean_num(row[avg_price_col]) if avg_price_col else 0.0
+            curr_price = _clean_num(row[curr_price_col]) if curr_price_col else avg_price
             
-            invested_val = float(row[invested_col]) if invested_col and pd.notna(row[invested_col]) else qty * avg_price
-            curr_val = float(row[current_value_col]) if current_value_col and pd.notna(row[current_value_col]) else qty * curr_price
+            invested_val = _clean_num(row[invested_col]) if invested_col else (qty * avg_price)
+            curr_val = _clean_num(row[current_value_col]) if current_value_col else (qty * curr_price)
             
             pnl = curr_val - invested_val
             pnl_pct = (pnl / invested_val * 100) if invested_val > 0 else 0.0

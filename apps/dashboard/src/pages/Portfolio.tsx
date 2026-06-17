@@ -6,6 +6,7 @@ import { formatINR, formatPct, cn } from '@/lib/utils';
 
 export const Portfolio = () => {
   const [holdings, setHoldings] = useState<any[]>([]);
+  const [health, setHealth] = useState<any>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -15,8 +16,13 @@ export const Portfolio = () => {
         if (response.data?.success !== false) {
           setHoldings(response.data.data || response.data);
         }
+        
+        const healthRes = await api.get('/portfolio/health?source=groww');
+        if (healthRes.data?.success !== false) {
+          setHealth(healthRes.data.data || healthRes.data);
+        }
       } catch (error) {
-        console.error("Failed to fetch holdings", error);
+        console.error("Failed to fetch data", error);
       }
     };
 
@@ -56,6 +62,11 @@ export const Portfolio = () => {
       }
     }
   };
+  
+  const divScore = health?.diversification_score ? Math.round(health.diversification_score) : 0;
+  const divScoreText = divScore > 70 ? "Good" : (divScore > 40 ? "Average" : "Low");
+  const divScoreStroke = divScore > 70 ? "#10b981" : (divScore > 40 ? "#f59e0b" : "#ef4444");
+  const divScoreOffset = 283 - (283 * (divScore / 100));
 
   return (
     <div className="space-y-6">
@@ -97,27 +108,21 @@ export const Portfolio = () => {
                   cy="50" 
                   r="45" 
                   fill="none" 
-                  stroke="url(#gradient)" 
+                  stroke={divScoreStroke}
                   strokeWidth="10" 
                   strokeDasharray="283"
-                  strokeDashoffset="70"
+                  strokeDashoffset={divScoreOffset}
                   className="transition-all duration-1000" 
                 />
-                <defs>
-                  <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#6366f1" />
-                    <stop offset="100%" stopColor="#8b5cf6" />
-                  </linearGradient>
-                </defs>
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-[var(--text-primary)]">75</span>
-                <span className="text-xs text-[var(--text-secondary)]">Good</span>
+                <span className="text-3xl font-bold text-[var(--text-primary)]">{divScore}</span>
+                <span className="text-xs text-[var(--text-secondary)]">{divScoreText}</span>
               </div>
             </div>
-            <p className="text-sm text-[var(--text-secondary)] font-medium">Your portfolio is reasonably diversified across 4 major sectors.</p>
-          </CardContent>
-        </Card>
+            <p className="text-sm text-[var(--text-secondary)] font-medium">
+              {health?.recommendations?.[0] || "Upload portfolio to see analysis."}
+            </p>
         
         <Card className="md:col-span-2 min-h-[400px] p-0 flex flex-col border-none shadow-[var(--shadow-glass)] overflow-hidden">
           <CardHeader className="border-b border-[var(--border-primary)] bg-[var(--bg-glass)] flex flex-row items-center justify-between py-4">
