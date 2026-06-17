@@ -1,0 +1,68 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+.pnp
+.pnp.js
+
+# Build outputs
+apps/dashboard/dist/
+apps/dashboard/.vite/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Docker
+docker-compose.override.yml
+
+# Database
+*.db
+*.sqlite3
+
+# Model artifacts
+services/ai_engine/model_store/*.pkl
+services/ai_engine/model_store/*.joblib
+services/ai_engine/model_store/*.json
+
+# Logs
+logs/
+*.log
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Pytest
+.pytest_cache/
+
+# Redis
+dump.rdb
+
+# Secrets
+*.pem
+*.key
+secrets/

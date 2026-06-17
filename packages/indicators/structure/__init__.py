@@ -1,0 +1,1 @@
+"""Structure indicators init."""

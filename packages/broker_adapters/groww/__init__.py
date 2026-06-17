@@ -1,0 +1,1 @@
+"""Groww adapter init."""
