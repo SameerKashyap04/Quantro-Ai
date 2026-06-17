@@ -5,7 +5,10 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { api } from '@/lib/api';
 import { formatINR, formatPct, cn } from '@/lib/utils';
 
+import { useNavigate } from 'react-router-dom';
+
 export const Dashboard = () => {
+  const navigate = useNavigate();
   const [summary, setSummary] = useState<any>(null);
   const [signals, setSignals] = useState<any[]>([]);
   const [equityCurve, setEquityCurve] = useState<any[]>([]);
@@ -176,9 +179,12 @@ export const Dashboard = () => {
         <Card className="col-span-1 md:col-span-2 lg:col-span-3 flex flex-col p-0">
           <CardHeader className="flex flex-row items-center justify-between border-b border-[var(--border-primary)] py-4">
             <CardTitle>Recent AI Signals</CardTitle>
-            <Button variant="ghost" size="sm" className="text-xs" onClick={() => navigate('/signals')}>
+            <button 
+              className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors px-3 py-1.5 rounded-md hover:bg-[var(--bg-glass-hover)]" 
+              onClick={() => navigate('/signals')}
+            >
               View All
-            </Button>
+            </button>
           </CardHeader>
           <CardContent className="flex-1 p-0 overflow-y-auto max-h-[300px] lg:max-h-none">
             {signals.length > 0 ? (
