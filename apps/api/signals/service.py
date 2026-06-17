@@ -65,31 +65,42 @@ class SignalService:
         fundamental_data_map = {}
         from services.market_data.fetchers import YFinanceFetcher
         fetcher = YFinanceFetcher()
+        import asyncio
         
-        for h in holdings:
-            stock_id = h['stock_id']
-            symbol = h['symbol']
+        async def fetch_stock_data(stock_id, symbol):
+            fund_task = asyncio.to_thread(fetcher.fetch_fundamentals, symbol)
+            news_task = asyncio.to_thread(fetcher.fetch_news, symbol, 5)
             
-            # Fetch fundamentals and news
-            fundamental_data_map[str(stock_id)] = fetcher.fetch_fundamentals(symbol)
-            news_data_map[str(stock_id)] = fetcher.fetch_news(symbol, limit=5)
+            fund_data, news_data = await asyncio.gather(fund_task, news_task, return_exceptions=True)
             
-            # Fetch 300 days of data so 200-period moving averages can be calculated
-            # Fetch 300 days of data so 200-period moving averages can be calculated
             rows = await self.market_repo.get_ohlcv_daily(stock_id, limit=300)
+            df = None
             if not rows:
-                # Dynamically fetch if missing in DB
-                # Use "2y" to ensure we get enough data for 200-day indicators
-                df = fetcher.fetch_ohlcv(symbol, period="2y", interval="1d", is_index=False)
-                if not df.empty:
-                    df = IndicatorCalculator.calculate_all(df)
-                    market_data_map[str(stock_id)] = df
+                df_task = asyncio.to_thread(fetcher.fetch_ohlcv, symbol, "2y", "1d", False)
+                df_res = await df_task
+                if not isinstance(df_res, Exception) and not df_res.empty:
+                    df = IndicatorCalculator.calculate_all(df_res)
             else:
-                df = pd.DataFrame(rows)
-                if not df.empty and 'date' in df.columns:
-                    # Calculate indicators needed by strategies
-                    df = IndicatorCalculator.calculate_all(df)
-                    market_data_map[str(stock_id)] = df
+                import pandas as pd
+                df_res = pd.DataFrame(rows)
+                if not df_res.empty and 'date' in df_res.columns:
+                    df = IndicatorCalculator.calculate_all(df_res)
+                    
+            return stock_id, fund_data, news_data, df
+            
+        tasks = [fetch_stock_data(h['stock_id'], h['symbol']) for h in holdings]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        
+        for res in results:
+            if isinstance(res, Exception):
+                continue
+            stock_id, fund_data, news_data, df = res
+            if not isinstance(fund_data, Exception) and fund_data:
+                fundamental_data_map[str(stock_id)] = fund_data
+            if not isinstance(news_data, Exception) and news_data:
+                news_data_map[str(stock_id)] = news_data
+            if df is not None:
+                market_data_map[str(stock_id)] = df
                     
         if not market_data_map:
             import logging
@@ -211,11 +222,17 @@ class SignalService:
             
             stock_id = stock['id']
             
-            # Fetch OHLCV data
+            # Fetch 300 days of data so 200-period moving averages can be calculated
             rows = await self.market_repo.get_ohlcv_daily(stock_id, limit=300)
+            
+            import asyncio
+            df_task = asyncio.to_thread(fetcher.fetch_ohlcv, symbol, "2y", "1d", False)
+            fund_task = asyncio.to_thread(fetcher.fetch_fundamentals, symbol)
+            news_task = asyncio.to_thread(fetcher.fetch_news, symbol, 5)
+            
             if not rows:
-                df = fetcher.fetch_ohlcv(symbol, period="2y", interval="1d", is_index=False)
-                if not df.empty:
+                df = await df_task
+                if not isinstance(df, Exception) and not df.empty:
                     df = IndicatorCalculator.calculate_all(df)
                     market_data_map[str(stock_id)] = df
             else:
@@ -224,13 +241,11 @@ class SignalService:
                     df = IndicatorCalculator.calculate_all(df)
                     market_data_map[str(stock_id)] = df
                     
-            # Fetch News and Fundamentals
-            news_data = fetcher.fetch_news(symbol, limit=5)
-            if news_data:
+            # Fetch News and Fundamentals concurrently
+            fund_data, news_data = await asyncio.gather(fund_task, news_task, return_exceptions=True)
+            if not isinstance(news_data, Exception) and news_data:
                 news_data_map[str(stock_id)] = news_data
-            
-            fund_data = fetcher.fetch_fundamentals(symbol)
-            if fund_data:
+            if not isinstance(fund_data, Exception) and fund_data:
                 fundamental_data_map[str(stock_id)] = fund_data
                     
         if not market_data_map:
