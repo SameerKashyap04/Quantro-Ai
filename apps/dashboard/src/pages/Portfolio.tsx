@@ -123,6 +123,8 @@ export const Portfolio = () => {
             <p className="text-sm text-[var(--text-secondary)] font-medium">
               {health?.recommendations?.[0] || "Upload portfolio to see analysis."}
             </p>
+          </CardContent>
+        </Card>
         
         <Card className="md:col-span-2 min-h-[400px] p-0 flex flex-col border-none shadow-[var(--shadow-glass)] overflow-hidden">
           <CardHeader className="border-b border-[var(--border-primary)] bg-[var(--bg-glass)] flex flex-row items-center justify-between py-4">
