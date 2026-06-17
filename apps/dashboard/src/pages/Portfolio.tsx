@@ -31,7 +31,7 @@ export const Portfolio = () => {
     setIsUploading(true);
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('source', 'groww_excel');
+    formData.append('source', 'groww');
 
     try {
       // Assuming api.post supports FormData directly when not stringified
