@@ -62,7 +62,8 @@ class PortfolioService:
         avg_price_col = next((c for c in df.columns if any(x in c for x in ['avg', 'cost', 'invested price', 'buy price', 'purchase'])), None)
         curr_price_col = next((c for c in df.columns if any(x in c for x in ['cmp', 'ltp', 'market price', 'nav', 'current price', 'close'])), None)
         invested_col = next((c for c in df.columns if any(x in c for x in ['invested', 'investment', 'amount', 'buy value'])), None)
-        current_value_col = next((c for c in df.columns if any(x in c for x in ['current value', 'market value', 'present value'])), None)
+        current_value_col = next((c for c in df.columns if any(x in c for x in ['current value', 'market value', 'present value', 'closing value'])), None)
+        pnl_col = next((c for c in df.columns if any(x in c for x in ['unrealised', 'unrealized', 'p&l', 'pnl', 'profit', 'loss'])), None)
 
         if not symbol_col or not qty_col:
             raise ValueError(f"Excel file missing required columns. Found columns: {df.columns.tolist()}. Could not identify Symbol and Quantity columns.")
@@ -75,8 +76,8 @@ class PortfolioService:
             except:
                 return 0.0
 
-        # Delete previous holdings for this source
-        await self.repo.delete_holdings_by_source(source)
+        # Delete ALL previous holdings across all sources to clear portfolio data
+        await self.repo.delete_all_holdings()
 
         upserted_count = 0
         for _, row in df.iterrows():
@@ -94,7 +95,11 @@ class PortfolioService:
             invested_val = _clean_num(row[invested_col]) if invested_col else (qty * avg_price)
             curr_val = _clean_num(row[current_value_col]) if current_value_col else (qty * curr_price)
             
-            pnl = curr_val - invested_val
+            if pnl_col:
+                pnl = _clean_num(row[pnl_col])
+            else:
+                pnl = curr_val - invested_val
+                
             pnl_pct = (pnl / invested_val * 100) if invested_val > 0 else 0.0
 
             # Find or create stock
@@ -121,7 +126,8 @@ class PortfolioService:
                 if stock_data and len(stock_data) > 0 and stock_data[0].get("close"):
                     curr_price = float(stock_data[0]["close"])
                     curr_val = qty * curr_price
-                    pnl = curr_val - invested_val
+                    if not pnl_col:
+                        pnl = curr_val - invested_val
                     pnl_pct = (pnl / invested_val * 100) if invested_val > 0 else 0.0
 
             holding = {

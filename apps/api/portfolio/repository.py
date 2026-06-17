@@ -64,9 +64,8 @@ class PortfolioRepository:
             holding,
         )
 
-    async def delete_holdings_by_source(self, source: str) -> None:
-        """Delete all portfolio holdings for a specific source."""
+    async def delete_all_holdings(self) -> None:
+        """Delete all portfolio holdings."""
         await self.db.execute(
-            text("DELETE FROM portfolio_holdings WHERE source = :source"),
-            {"source": source},
+            text("DELETE FROM portfolio_holdings")
         )
