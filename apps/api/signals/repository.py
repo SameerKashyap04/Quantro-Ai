@@ -30,7 +30,6 @@ class SignalRepository:
             FROM signals s
             JOIN stocks st ON s.stock_id = st.id
             WHERE s.is_active = true
-            AND DATE(s.created_at) = CURRENT_DATE
         """
         params: dict = {}
 
