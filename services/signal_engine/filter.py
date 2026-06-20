@@ -25,13 +25,13 @@ class SignalFilter:
             return False
             
         # 3. Regime Filter
-        # Avoid taking LONGs in strong BEAR regimes unless confidence is extremely high
+        # Avoid taking LONGs in strong BEAR regimes unless confidence is high
         if market_regime == "bear" and signal.get("signal_type") == "BUY":
-            if signal.get("confidence", 0) < 85:
+            if signal.get("confidence", 0) < 75:
                 return False
                 
         if market_regime == "bull" and signal.get("signal_type") == "SELL":
-            if signal.get("confidence", 0) < 85:
+            if signal.get("confidence", 0) < 75:
                 return False
                 
         return True

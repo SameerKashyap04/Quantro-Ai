@@ -92,15 +92,19 @@ class HybridStrategy:
         elif tech_signal == ai_signal['signal_type'] and tech_signal != "HOLD":
             # Strong confluence
             final_signal = tech_signal
-            final_confidence = (tech_score + ai_signal['confidence']) / 2
+            tech_confidence = (100 - tech_score) if tech_signal == "SELL" else tech_score
+            final_confidence = (tech_confidence + ai_signal['confidence']) / 2
         elif ai_signal['signal_type'] != "HOLD" and ai_signal['confidence'] > 75:
             # AI override if very confident (and no strict contradiction)
             final_signal = ai_signal['signal_type']
-            final_confidence = ai_signal['confidence'] * 0.8
-        elif tech_signal != "HOLD" and tech_score > 70:
+            final_confidence = ai_signal['confidence'] * 0.85
+        elif tech_signal == "BUY" and tech_score >= 70:
             # Technical override if very strong (and no strict contradiction)
-            final_signal = tech_signal
-            final_confidence = tech_score * 0.8
+            final_signal = "BUY"
+            final_confidence = tech_score * 0.85
+        elif tech_signal == "SELL" and tech_score <= 30:
+            final_signal = "SELL"
+            final_confidence = (100 - tech_score) * 0.85
             
         return {
             "signal_type": final_signal,
