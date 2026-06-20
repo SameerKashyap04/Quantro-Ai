@@ -88,9 +88,16 @@ class SignalService:
                     
             return stock_id, fund_data, news_data, df
             
-        tasks = [fetch_stock_data(h['stock_id'], h['symbol']) for h in holdings]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-        
+        chunk_size = 5
+        results = []
+        for i in range(0, len(holdings), chunk_size):
+            chunk = holdings[i:i+chunk_size]
+            tasks = [fetch_stock_data(h['stock_id'], h['symbol']) for h in chunk]
+            chunk_results = await asyncio.gather(*tasks, return_exceptions=True)
+            results.extend(chunk_results)
+            # Short sleep to prevent rate limits/CPU spikes
+            await asyncio.sleep(0.5)
+            
         for res in results:
             if isinstance(res, Exception):
                 continue
