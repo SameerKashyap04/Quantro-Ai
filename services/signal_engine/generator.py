@@ -28,7 +28,7 @@ class SignalGenerator:
         self.predictor = AIPredictor(self.model_manager)
         self.strategy = HybridStrategy(self.predictor)
 
-    async def generate_for_market(self, market_data_map: Dict[str, pd.DataFrame], current_regime: str, news_data_map: Dict[str, List[Dict]] = None, fundamental_data_map: Dict[str, dict] = None):
+    async def generate_for_market(self, market_data_map: Dict[str, pd.DataFrame], current_regime: str, news_data_map: Dict[str, List[Dict]] = None, fundamental_data_map: Dict[str, dict] = None, is_portfolio_analysis: bool = False) -> List[Dict]:
         """
         Generate signals for all provided stocks.
         market_data_map: { "uuid-string": dataframe }
@@ -52,6 +52,12 @@ class SignalGenerator:
                 passes = self.filter.passes_filter(raw_signal, current_regime)
                 logger.info(f"[{stock_id}] Filter passes: {passes}")
                 if passes:
+                    raw_signal["stock_id"] = stock_id
+                    valid_signals.append(raw_signal)
+                elif is_portfolio_analysis:
+                    # If it's a portfolio stock, we MUST return a signal so it shows up in the UI
+                    raw_signal["signal_type"] = "HOLD"
+                    raw_signal["confidence"] = 50.0  # Default neutral confidence
                     raw_signal["stock_id"] = stock_id
                     valid_signals.append(raw_signal)
                     

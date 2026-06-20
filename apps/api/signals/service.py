@@ -125,7 +125,13 @@ class SignalService:
         current_regime = regime_record['regime_type'] if regime_record else "BULL"
         
         # Generate new signals
-        signals = await generator.generate_for_market(market_data_map, current_regime, news_data_map, fundamental_data_map)
+        signals = await generator.generate_for_market(
+            market_data_map, 
+            current_regime, 
+            news_data_map, 
+            fundamental_data_map,
+            is_portfolio_analysis=True
+        )
         await self.db.flush()
         
         # Retrieve the newly generated signals enriched with stock info
