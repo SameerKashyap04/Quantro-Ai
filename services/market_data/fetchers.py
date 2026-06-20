@@ -99,6 +99,8 @@ class YFinanceFetcher:
                 "debtToEquity": info.get("debtToEquity"),
                 "profitMargins": info.get("profitMargins"),
                 "revenueGrowth": info.get("revenueGrowth"),
+                "sector": info.get("sector"),
+                "longName": info.get("longName") or info.get("shortName"),
             }
         except Exception as e:
             logger.error(f"Error fetching fundamentals for {yf_symbol}: {e}")
