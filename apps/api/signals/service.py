@@ -109,29 +109,54 @@ class SignalService:
             if df is not None:
                 market_data_map[str(stock_id)] = df
                     
-        if not market_data_map:
+        # Check for failed fetches and create fallback signals
+        failed_holdings = [h for h in holdings if str(h['stock_id']) not in market_data_map]
+        
+        if failed_holdings:
             import logging
             logger = logging.getLogger(__name__)
-            logger.error("No market data available for any holdings!")
-            return []
+            logger.warning(f"{len(failed_holdings)} portfolio stocks failed to fetch market data. Generating fallback HOLD signals.")
             
-        # Run the signal generator
-        model_manager = AIModelManager(model_dir="/tmp/models")
-        generator = SignalGenerator(self.db, risk_settings={})
-        generator.model_manager = model_manager
-        generator.predictor.model_manager = model_manager
-        
-        regime_record = await self.market_repo.get_market_regime()
-        current_regime = regime_record['regime_type'] if regime_record else "BULL"
-        
-        # Generate new signals
-        signals = await generator.generate_for_market(
-            market_data_map, 
-            current_regime, 
-            news_data_map, 
-            fundamental_data_map,
-            is_portfolio_analysis=True
-        )
+            import json
+            for h in failed_holdings:
+                try:
+                    await self.repo.deactivate_old_signals(h['stock_id'])
+                    sig_data = {
+                        "stock_id": h["stock_id"],
+                        "signal_type": "HOLD",
+                        "confidence": 50.0,
+                        "stop_loss_pct": None,
+                        "target_pct": None,
+                        "risk_level": "Medium",
+                        "strategy_name": "Fallback",
+                        "reasoning_json": json.dumps({"error": "Failed to fetch real-time market data.", "tech_signal": "HOLD", "ai_signal": "HOLD"}),
+                        "ai_bullish_prob": 0.5,
+                        "ai_bearish_prob": 0.5,
+                        "holding_period_days": 14
+                    }
+                    await self.repo.create_signal(sig_data)
+                except Exception as e:
+                    logger.error(f"Error creating fallback signal for {h['symbol']}: {e}")
+                    
+        # If we have market data, run the signal generator
+        if market_data_map:
+            model_manager = AIModelManager(model_dir="/tmp/models")
+            generator = SignalGenerator(self.db, risk_settings={})
+            generator.model_manager = model_manager
+            generator.predictor.model_manager = model_manager
+            
+            regime_record = await self.market_repo.get_market_regime()
+            current_regime = regime_record['regime_type'] if regime_record else "BULL"
+            
+            # Generate new signals
+            signals = await generator.generate_for_market(
+                market_data_map, 
+                current_regime, 
+                news_data_map, 
+                fundamental_data_map,
+                is_portfolio_analysis=True
+            )
+            
         await self.db.flush()
         
         # Retrieve the newly generated signals enriched with stock info
