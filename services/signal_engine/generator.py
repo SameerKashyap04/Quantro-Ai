@@ -47,8 +47,6 @@ class SignalGenerator:
                 raw_signal = self.strategy.evaluate(df, current_regime, news_data, fund_data)
                 
                 logger.info(f"[{stock_id}] Raw Signal: {raw_signal}")
-                if raw_signal["signal_type"] == "HOLD":
-                    continue
                     
                 # 2. Filter
                 passes = self.filter.passes_filter(raw_signal, current_regime)

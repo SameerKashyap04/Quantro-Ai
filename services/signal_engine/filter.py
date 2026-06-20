@@ -12,7 +12,10 @@ class SignalFilter:
 
     def passes_filter(self, signal: Dict[str, Any], market_regime: str) -> bool:
         """Check if a generated signal passes quality/risk filters."""
-        
+        # Always allow HOLD signals through the filter so they can be saved and displayed for portfolio stocks
+        if signal.get("signal_type") == "HOLD":
+            return True
+            
         # 1. Minimum Confidence
         if signal.get("confidence", 0) < 60:
             return False
