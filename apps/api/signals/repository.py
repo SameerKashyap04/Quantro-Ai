@@ -92,8 +92,16 @@ class SignalRepository:
         return dict(row._mapping) if row else {}
 
     async def deactivate_old_signals(self, stock_id: UUID) -> None:
-        """Deactivate previous signals for a stock when new ones are generated."""
+        """Set is_active=false for previous signals of a stock."""
         await self.db.execute(
-            text("UPDATE signals SET is_active = false WHERE stock_id = :stock_id AND is_active = true"),
-            {"stock_id": str(stock_id)},
+            text("UPDATE signals SET is_active = false WHERE stock_id = :stock_id"),
+            {"stock_id": stock_id}
         )
+
+    async def delete_old_signals(self, days_kept: int = 2) -> int:
+        """Delete signals older than X days to prevent database bloat."""
+        res = await self.db.execute(
+            text("DELETE FROM signals WHERE created_at < NOW() - make_interval(days => :days)"),
+            {"days": days_kept}
+        )
+        return res.rowcount

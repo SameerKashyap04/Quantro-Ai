@@ -144,6 +144,9 @@ class SignalService:
         logger = logging.getLogger(__name__)
         logger.info("Finding new market opportunities...")
         
+        # Clean up old database signals to prevent DB overload from previous days
+        await self.repo.delete_old_signals(days_kept=1)
+        
         # 1. Get all current portfolio symbols
         holdings = await self.portfolio_repo.get_holdings("groww")
         portfolio_symbols = {h['symbol'] for h in holdings}
