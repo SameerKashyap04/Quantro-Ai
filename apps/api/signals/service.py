@@ -138,70 +138,39 @@ class SignalService:
 
     async def analyze_market_opportunities(self, limit: int = 10) -> list[dict]:
         import logging
-        import requests
-        logger = logging.getLogger(__name__)
-        logger.info("Screening multiple sources (NSE & TradingView) for real-time top gainers...")
+        import random
+        from packages.shared.nse_universe import NIFTY_50, NIFTY_NEXT_50
         
-        selected_symbols = []
-        try:
-            headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
-                'Accept': '*/*',
-            }
-            session = requests.Session()
-            session.headers.update(headers)
+        logger = logging.getLogger(__name__)
+        logger.info("Finding new market opportunities...")
+        
+        # 1. Get all current portfolio symbols
+        holdings = await self.portfolio_repo.get_holdings("groww")
+        portfolio_symbols = {h['symbol'] for h in holdings}
+        
+        # 2. Get all symbols that already have recent signals in the database
+        recent_signals = await self.repo.get_latest_signals(limit=200)
+        recently_analyzed = {sig['symbol'] for sig in recent_signals}
+        
+        # 3. Combine NIFTY 50 and NIFTY NEXT 50 to form our search universe
+        universe = list(set(NIFTY_50 + NIFTY_NEXT_50))
+        
+        # 4. Filter out portfolio symbols
+        candidates = [s for s in universe if s not in portfolio_symbols]
+        
+        # 5. Prioritize candidates that haven't been analyzed recently
+        fresh_candidates = [s for s in candidates if s not in recently_analyzed]
+        
+        # If we need more, fallback to candidates that WERE analyzed recently but aren't in portfolio
+        if len(fresh_candidates) < limit:
+            selected_symbols = fresh_candidates + random.sample(
+                [s for s in candidates if s in recently_analyzed], 
+                min(limit - len(fresh_candidates), len(candidates) - len(fresh_candidates))
+            )
+        else:
+            selected_symbols = random.sample(fresh_candidates, limit)
             
-            # 1. Fetch from official NSE India API
-            try:
-                session.get("https://www.nseindia.com", timeout=5)
-                res_nse = session.get("https://www.nseindia.com/api/live-analysis-variations?index=gainers", timeout=5)
-                if res_nse.status_code == 200:
-                    data = res_nse.json()
-                    if 'FOSec' in data:
-                        nse_symbols = [item['symbol'] for item in data['FOSec']['data']]
-                        selected_symbols.extend(nse_symbols)
-            except Exception as e:
-                logger.warning(f"NSE API fetch failed: {e}")
-
-            # 2. Fetch from TradingView Screener API (Mimics Screener.in/Tickertape/Groww)
-            try:
-                tv_payload = {
-                    "filter": [
-                        {"left": "exchange", "operation": "equal", "right": "NSE"},
-                        {"left": "market_cap_basic", "operation": "egreater", "right": 50000000000}, # > 5000 Cr Market Cap
-                        {"left": "volume", "operation": "egreater", "right": 1000000} # > 1M Volume
-                    ],
-                    "options": {"lang": "en"},
-                    "markets": ["india"],
-                    "symbols": {"query": {"types": []}, "tickers": []},
-                    "columns": ["name"],
-                    "sort": {"sortBy": "change", "sortOrder": "desc"},
-                    "range": [0, limit]
-                }
-                res_tv = requests.post("https://scanner.tradingview.com/india/scan", json=tv_payload, headers=headers, timeout=5)
-                if res_tv.status_code == 200:
-                    tv_symbols = [x['d'][0] for x in res_tv.json().get('data', [])]
-                    selected_symbols.extend(tv_symbols)
-            except Exception as e:
-                logger.warning(f"TradingView API fetch failed: {e}")
-                    
-            # Exclude portfolio holdings
-            holdings = await self.portfolio_repo.get_holdings("groww")
-            portfolio_symbols = {h['symbol'] for h in holdings}
-            selected_symbols = [s for s in selected_symbols if s not in portfolio_symbols]
-            
-            # Remove duplicates and enforce limit
-            selected_symbols = list(dict.fromkeys(selected_symbols))[:limit]
-            logger.info(f"Top aggregated gainers selected: {selected_symbols}")
-            
-        except Exception as e:
-            logger.error(f"NSE Screener fetch failed: {e}. Falling back to random NIFTY 50 sample.")
-            from packages.shared.nse_universe import NIFTY_50
-            import random
-            holdings = await self.portfolio_repo.get_holdings("groww")
-            portfolio_symbols = {h['symbol'] for h in holdings}
-            non_portfolio_symbols = [s for s in NIFTY_50 if s not in portfolio_symbols]
-            selected_symbols = random.sample(non_portfolio_symbols, min(limit, len(non_portfolio_symbols))) if non_portfolio_symbols else []
+        logger.info(f"Selected {len(selected_symbols)} new symbols to analyze: {selected_symbols}")
 
         if not selected_symbols:
             return []
@@ -264,21 +233,17 @@ class SignalService:
         current_regime = regime_record['regime_type'] if regime_record else "BULL"
         
         # Generate new signals
-        signals = await generator.generate_for_market(market_data_map, current_regime, news_data_map, fundamental_data_map)
+        await generator.generate_for_market(market_data_map, current_regime, news_data_map, fundamental_data_map)
         
-        # Retrieve the newly generated signals enriched with stock info
-        enriched_signals = []
-        for s in selected_stocks:
-            symbol_signals = await self.repo.get_signals_by_symbol(s['symbol'], limit=1)
-            if symbol_signals:
-                # Include all active signals for market opportunities
-                enriched_signals.append(symbol_signals[0])
-                
+        # Instead of returning ONLY the newly generated ones, return ALL market opportunities from the DB ranked by confidence
+        # This solves the issue of showing the "same 7 stocks" and instead aggregates a growing list of opportunities
+        all_market_opportunities = await self.get_latest(market_only=True, limit=50)
+        
         # Format dates
-        for sig in enriched_signals:
+        for sig in all_market_opportunities:
             if hasattr(sig.get("created_at"), "isoformat"):
                 sig["created_at"] = sig["created_at"].isoformat()
                 
         # Sort by confidence
-        enriched_signals.sort(key=lambda x: x.get("confidence", 0), reverse=True)
-        return enriched_signals
+        all_market_opportunities.sort(key=lambda x: x.get("confidence", 0), reverse=True)
+        return all_market_opportunities
