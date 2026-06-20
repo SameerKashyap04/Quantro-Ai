@@ -18,8 +18,64 @@ class PortfolioService:
         self.market_repo = MarketRepository(db)
         self.db = db
 
+    async def sync_live_prices(self, source: str = "groww") -> None:
+        """Sync live prices from YFinance and update the portfolio."""
+        from services.market_data.fetchers import YFinanceFetcher
+        import asyncio
+        from datetime import datetime, timezone
+        
+        holdings = await self.repo.get_holdings(source)
+        if not holdings:
+            return
+            
+        # Check if updated recently (within last 5 minutes)
+        last_updated = holdings[0].get("updated_at")
+        if last_updated:
+            if isinstance(last_updated, str):
+                from dateutil.parser import parse
+                last_updated = parse(last_updated)
+            now = datetime.now(timezone.utc)
+            if last_updated.tzinfo is None:
+                now = datetime.now()
+            if (now - last_updated).total_seconds() < 300:
+                return
+
+        fetcher = YFinanceFetcher()
+        
+        async def fetch_and_update(h):
+            symbol = h["symbol"]
+            stock_id = h["stock_id"]
+            price_data = await asyncio.to_thread(fetcher.fetch_latest_price, symbol, False)
+            if price_data and price_data.get("price"):
+                current_price = float(price_data["price"])
+                quantity = float(h["quantity"])
+                avg_buy_price = float(h["avg_buy_price"])
+                
+                current_value = quantity * current_price
+                invested_value = float(h.get("invested_value") or (quantity * avg_buy_price))
+                pnl = current_value - invested_value
+                pnl_pct = (pnl / invested_value * 100) if invested_value > 0 else 0
+                
+                h_new = {
+                    "stock_id": stock_id,
+                    "quantity": quantity,
+                    "avg_buy_price": avg_buy_price,
+                    "current_price": current_price,
+                    "invested_value": invested_value,
+                    "current_value": current_value,
+                    "pnl": pnl,
+                    "pnl_pct": pnl_pct,
+                    "source": h["source"]
+                }
+                await self.repo.upsert_holding(h_new)
+
+        tasks = [fetch_and_update(h) for h in holdings]
+        await asyncio.gather(*tasks, return_exceptions=True)
+        await self.db.commit()
+
     async def get_holdings(self, source: str = "paper") -> list[dict]:
         """Get portfolio holdings with weights."""
+        await self.sync_live_prices(source)
         holdings = await self.repo.get_holdings(source)
         total_value = sum(h.get("current_value") or 0 for h in holdings)
         for h in holdings:
@@ -79,6 +135,23 @@ class PortfolioService:
         # Delete ALL previous holdings across all sources to clear portfolio data
         await self.repo.delete_all_holdings()
 
+        # Pre-fetch metadata for all unique symbols to ensure we have the correct Name and Sector
+        unique_symbols = set()
+        for _, row in df.iterrows():
+            symbol = str(row[symbol_col]).strip().upper()
+            if symbol and symbol != 'NAN':
+                unique_symbols.add(symbol)
+                
+        import asyncio
+        from services.market_data.fetchers import YFinanceFetcher
+        fetcher = YFinanceFetcher()
+        async def fetch_meta(sym):
+            return await asyncio.to_thread(fetcher.fetch_fundamentals, sym)
+            
+        meta_tasks = [fetch_meta(sym) for sym in unique_symbols]
+        meta_results = await asyncio.gather(*meta_tasks, return_exceptions=True)
+        meta_map = dict(zip(unique_symbols, meta_results))
+
         upserted_count = 0
         for _, row in df.iterrows():
             symbol = str(row[symbol_col]).strip().upper()
@@ -102,23 +175,39 @@ class PortfolioService:
                 
             pnl_pct = (pnl / invested_val * 100) if invested_val > 0 else 0.0
 
-            # Find or create stock
+            # Find or create stock with fetched metadata
+            info = meta_map.get(symbol, {})
+            if isinstance(info, Exception):
+                info = {}
+            name = info.get("longName") or symbol
+            sector = info.get("sector")
+
             stock = await self.market_repo.get_stock_by_symbol(symbol)
             if not stock:
                 # We need to upsert it manually since get_stock_by_symbol might return None for inactive stocks
                 from sqlalchemy import text
                 res = await self.db.execute(
                     text("""
-                        INSERT INTO stocks (symbol, name, is_active) 
-                        VALUES (:symbol, :name, true) 
-                        ON CONFLICT (symbol) DO UPDATE SET is_active = true 
+                        INSERT INTO stocks (symbol, name, sector, is_active) 
+                        VALUES (:symbol, :name, :sector, true) 
+                        ON CONFLICT (symbol) DO UPDATE SET 
+                            is_active = true, 
+                            name = EXCLUDED.name, 
+                            sector = COALESCE(EXCLUDED.sector, stocks.sector)
                         RETURNING id
                     """),
-                    {"symbol": symbol, "name": symbol}
+                    {"symbol": symbol, "name": name, "sector": sector}
                 )
                 stock_id = res.scalar()
             else:
                 stock_id = stock["id"]
+                # Optionally, update existing stock if metadata is newly found
+                if sector and not stock.get("sector"):
+                    from sqlalchemy import text
+                    await self.db.execute(
+                        text("UPDATE stocks SET sector = :sector, name = :name WHERE id = :id"),
+                        {"sector": sector, "name": name, "id": stock_id}
+                    )
 
             # Try to fetch latest live price from DB if current price wasn't specified in the excel file or matches avg_price
             if not curr_price_col or curr_price <= 0 or curr_price == avg_price:
@@ -149,6 +238,7 @@ class PortfolioService:
 
     async def get_summary(self, source: str = "paper") -> dict:
         """Get portfolio summary statistics."""
+        await self.sync_live_prices(source)
         holdings = await self.repo.get_holdings(source)
 
         total_value = float(sum(h.get("current_value") or 0 for h in holdings))
@@ -170,6 +260,7 @@ class PortfolioService:
 
     async def get_health(self, source: str = "paper") -> dict:
         """Calculate portfolio health scores."""
+        await self.sync_live_prices(source)
         holdings = await self.repo.get_holdings(source)
 
         if not holdings:
@@ -200,15 +291,23 @@ class PortfolioService:
         hhi = sum(w**2 for w in weights) * 10000  # scale to 0-10000
         concentration_risk = min(100, hhi / 100)
 
-        # Diversification score (based on sector entropy)
-        n_sectors = len(sector_values)
+        # Diversification score
+        n_sectors = len([s for s in sector_values.keys() if s != "Unknown"])
         if n_sectors > 1 and total_value > 0:
-            sector_weights = [v / total_value for v in sector_values.values()]
+            sector_weights = [v / total_value for k, v in sector_values.items() if k != "Unknown"]
             entropy = -sum(w * math.log(w) for w in sector_weights if w > 0)
             max_entropy = math.log(n_sectors)
             diversification_score = (entropy / max_entropy * 100) if max_entropy > 0 else 0
         else:
-            diversification_score = 0
+            # Fallback to stock-level diversification if sectors are unknown
+            n_stocks = len(holdings)
+            if n_stocks > 1 and total_value > 0:
+                stock_weights = [(float(h.get("current_value") or 0)) / total_value for h in holdings]
+                entropy = -sum(w * math.log(w) for w in stock_weights if w > 0)
+                max_entropy = math.log(n_stocks)
+                diversification_score = (entropy / max_entropy * 100) if max_entropy > 0 else 0
+            else:
+                diversification_score = 0
 
         # Health score (composite)
         pnl_trend_score = 50  # neutral default
