@@ -119,6 +119,7 @@ class SignalService:
         
         # Generate new signals
         signals = await generator.generate_for_market(market_data_map, current_regime, news_data_map, fundamental_data_map)
+        await self.db.flush()
         
         # Retrieve the newly generated signals enriched with stock info
         enriched_signals = []
@@ -237,6 +238,7 @@ class SignalService:
         
         # Generate new signals
         await generator.generate_for_market(market_data_map, current_regime, news_data_map, fundamental_data_map)
+        await self.db.flush()
         
         # Instead of returning ONLY the newly generated ones, return ALL market opportunities from the DB ranked by confidence
         # This solves the issue of showing the "same 7 stocks" and instead aggregates a growing list of opportunities
