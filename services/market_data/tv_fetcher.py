@@ -10,6 +10,9 @@ from datetime import datetime
 logger = logging.getLogger(__name__)
 
 # Initialize tvDatafeed (anonymous mode)
+import threading
+tv_lock = threading.Lock()
+
 try:
     tv = TvDatafeed()
 except Exception as e:
@@ -62,7 +65,8 @@ class TradingViewFetcher:
             elif "d" in period:
                 n_bars = int(period.replace("d", ""))
 
-            df = tv.get_hist(symbol=tv_sym, exchange=exchange, interval=tv_interval, n_bars=n_bars)
+            with tv_lock:
+                df = tv.get_hist(symbol=tv_sym, exchange=exchange, interval=tv_interval, n_bars=n_bars)
             
             if df is None or df.empty:
                 logger.warning(f"No data returned from TradingView for {tv_sym}")
@@ -101,7 +105,8 @@ class TradingViewFetcher:
         tv_sym = TradingViewFetcher._clean_symbol(symbol, is_index)
         
         try:
-            df = tv.get_hist(symbol=tv_sym, exchange="NSE", interval=Interval.in_daily, n_bars=2)
+            with tv_lock:
+                df = tv.get_hist(symbol=tv_sym, exchange="NSE", interval=Interval.in_daily, n_bars=2)
             if df is None or df.empty:
                 return None
                 
