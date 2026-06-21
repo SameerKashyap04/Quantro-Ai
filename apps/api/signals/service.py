@@ -63,8 +63,8 @@ class SignalService:
         market_data_map = {}
         news_data_map = {}
         fundamental_data_map = {}
-        from services.market_data.fetchers import YFinanceFetcher
-        fetcher = YFinanceFetcher()
+        from services.market_data.tv_fetcher import TradingViewFetcher
+        fetcher = TradingViewFetcher()
         import asyncio
         
         async def fetch_stock_data(stock_id, symbol):
