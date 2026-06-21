@@ -11,8 +11,24 @@ from packages.shared.nse_universe import get_yfinance_symbol
 logger = logging.getLogger(__name__)
 
 
+import requests
+import random
+
 class YFinanceFetcher:
-    """Fetches market data from Yahoo Finance."""
+    """Fetches market data from Yahoo Finance with rate-limit bypass."""
+
+    @staticmethod
+    def _get_session() -> requests.Session:
+        """Create a requests session with a realistic User-Agent to bypass YFinance blocks."""
+        USER_AGENTS = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.1 Safari/605.1.15",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36"
+        ]
+        session = requests.Session()
+        session.headers.update({"User-Agent": random.choice(USER_AGENTS)})
+        return session
 
     @staticmethod
     def fetch_ohlcv(symbol: str, period: str = "1mo", interval: str = "1d", is_index: bool = False) -> pd.DataFrame:
@@ -23,7 +39,7 @@ class YFinanceFetcher:
         """
         yf_symbol = get_yfinance_symbol(symbol, is_index)
         try:
-            ticker = yf.Ticker(yf_symbol)
+            ticker = yf.Ticker(yf_symbol, session=YFinanceFetcher._get_session())
             df = ticker.history(period=period, interval=interval)
             
             if df.empty:
@@ -57,7 +73,7 @@ class YFinanceFetcher:
         """Fetch the current/latest price."""
         yf_symbol = get_yfinance_symbol(symbol, is_index)
         try:
-            ticker = yf.Ticker(yf_symbol)
+            ticker = yf.Ticker(yf_symbol, session=YFinanceFetcher._get_session())
             fast_info = ticker.fast_info
             
             if not fast_info:
@@ -86,7 +102,7 @@ class YFinanceFetcher:
             return {}
         yf_symbol = get_yfinance_symbol(symbol, False)
         try:
-            ticker = yf.Ticker(yf_symbol)
+            ticker = yf.Ticker(yf_symbol, session=YFinanceFetcher._get_session())
             info = ticker.info
             if not info:
                 return {}
@@ -111,7 +127,7 @@ class YFinanceFetcher:
         """Fetch latest news for a symbol using only Yahoo Finance."""
         yf_symbol = get_yfinance_symbol(symbol, is_index)
         try:
-            ticker = yf.Ticker(yf_symbol)
+            ticker = yf.Ticker(yf_symbol, session=YFinanceFetcher._get_session())
             news = ticker.news
             if not news:
                 return []
